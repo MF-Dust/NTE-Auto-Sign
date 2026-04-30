@@ -54,6 +54,7 @@ REQUEST_HEADERS_BASE = {
 SEND_CAPTCHA_URL = 'https://user.laohu.com/m/newApi/sendPhoneCaptchaWithOutLogin'
 CHECK_CAPTCHA_URL = 'https://user.laohu.com/m/newApi/checkPhoneCaptchaWithOutLogin'
 LOGIN_URL = 'https://user.laohu.com/openApi/sms/new/login'
+PASSWORD_LOGIN_URL = 'https://user.laohu.com/m/newApi/login'
 USER_CENTER_LOGIN_URL = 'https://bbs-api.tajiduo.com/usercenter/api/login'
 REFRESH_TOKEN_URL = 'https://bbs-api.tajiduo.com/usercenter/api/refreshToken'
 GET_GAME_ROLES_URL = 'https://bbs-api.tajiduo.com/usercenter/api/v2/getGameRoles'
@@ -468,6 +469,46 @@ def login(phone, code, device_id):
     return token, str(user_id)
 
 
+def _login_with_password_raw(phone, password, device_id, encrypt):
+    username = _aes_base64_encode(phone) if encrypt else phone
+    login_password = _aes_base64_encode(password) if encrypt else password
+    data = {
+        'deviceType': DEVICETYPE,
+        'type': TYPE,
+        'deviceId': device_id,
+        'deviceName': DEVICENAME,
+        'versionCode': VERSIONCODE,
+        't': str(int(time.time())),
+        'areaCodeId': AREACODEID,
+        'appId': APP_ID,
+        'deviceSys': DEVICESYS,
+        'username': username,
+        'password': login_password,
+        'deviceModel': DEVICEMODEL,
+        'sdkVersion': SDKVERSION,
+        'bid': BID,
+        'channelId': CHANNELID,
+    }
+    data['sign'] = generate_signature(data)
+    return _safe_json(_request_form(PASSWORD_LOGIN_URL, data, REQUEST_HEADERS_BASE), '密码登录')
+
+
+def login_with_password(phone, password, device_id):
+    resp = _login_with_password_raw(phone, password, device_id, encrypt=False)
+    if not _is_ok(resp):
+        msg = str(resp.get('message') or resp.get('msg') or resp)
+        if 'BAD_REQUEST' in msg:
+            resp = _login_with_password_raw(phone, password, device_id, encrypt=True)
+        if not _is_ok(resp):
+            raise Exception(f'密码登录失败：{resp.get("message") or resp.get("msg") or resp}')
+    result = resp.get('result') or {}
+    token = result.get('token')
+    user_id = result.get('userId')
+    if not token or user_id is None:
+        raise Exception(f'密码登录返回缺少 token/userId：{resp}')
+    return token, str(user_id)
+
+
 def user_center_login(token, user_id, device_id):
     headers = {
         **REQUEST_HEADERS_BASE,
@@ -677,20 +718,7 @@ def game_signin(access_token, role_id, game_id):
     return False, '；'.join(errors) if errors else '游戏签到失败'
 
 
-def login_by_code():
-    phone = input('请输入手机号码：').strip()
-    if not phone:
-        raise Exception('手机号不能为空')
-
-    device_id = _random_device_id()
-    send_captcha(phone, device_id)
-    code = input('请输入手机验证码：').strip()
-    if not code:
-        raise Exception('验证码不能为空')
-
-    check_captcha(phone, code, device_id)
-    token, user_id = login(phone, code, device_id)
-    user_center = user_center_login(token, user_id, device_id)
+def _build_account_from_user_center(user_center, device_id):
     account = {
         'refreshToken': user_center['refreshToken'],
         'uid': str(user_center.get('uid', '')),
@@ -708,6 +736,38 @@ def login_by_code():
     except Exception as ex:
         print(f'自动获取角色ID失败：{ex}')
     return account
+
+
+def login_by_code():
+    phone = input('请输入手机号码：').strip()
+    if not phone:
+        raise Exception('手机号不能为空')
+
+    device_id = _random_device_id()
+    send_captcha(phone, device_id)
+    code = input('请输入手机验证码：').strip()
+    if not code:
+        raise Exception('验证码不能为空')
+
+    check_captcha(phone, code, device_id)
+    token, user_id = login(phone, code, device_id)
+    user_center = user_center_login(token, user_id, device_id)
+    return _build_account_from_user_center(user_center, device_id)
+
+
+def login_by_password():
+    phone = input('请输入手机号码：').strip()
+    if not phone:
+        raise Exception('手机号不能为空')
+
+    password = input('请输入账号密码：').strip()
+    if not password:
+        raise Exception('密码不能为空')
+
+    device_id = _random_device_id()
+    token, user_id = login_with_password(phone, password, device_id)
+    user_center = user_center_login(token, user_id, device_id)
+    return _build_account_from_user_center(user_center, device_id)
 
 
 def input_refresh_token():
@@ -730,11 +790,14 @@ def input_refresh_token():
 def input_for_token():
     print('请输入你需要做什么：')
     print('1. 使用手机号+验证码登录（推荐）')
-    print('2. 手动输入 refreshToken（高级）')
-    mode = input('请输入（1，2）：').strip()
+    print('2. 使用手机号+密码登录')
+    print('3. 手动输入 refreshToken（高级）')
+    mode = input('请输入（1，2，3）：').strip()
     if mode == '' or mode == '1':
         return login_by_code()
     if mode == '2':
+        return login_by_password()
+    if mode == '3':
         return input_refresh_token()
     raise SystemExit(-1)
 
