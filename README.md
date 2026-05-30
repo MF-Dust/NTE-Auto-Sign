@@ -1,15 +1,17 @@
 # NTE Auto Sign（塔吉多 / 异环）
 
-NTE Auto Sign 是一个塔吉多（异环）自动签到工具，支持短信/refreshToken 登录、多账号管理与切换、社区+游戏签到、奖励日志输出，并提供 `nte.exe` 与 `add_account.exe` 便捷使用。
+NTE Auto Sign 是一个塔吉多（异环）自动签到工具，支持短信/refreshToken 登录、多账号管理与切换、社区+游戏签到、云异环每日时长领取、奖励日志输出，并提供 `nte.exe` 与 `add_account.exe` 便捷使用。
 
 ## 功能特性
 
 - 手机号 + 短信验证码登录
 - 手机号 + 密码登录
 - `refreshToken` 登录（高级模式）
+- 云异环手机号 + 短信验证码登录
 - 多账号保存到 `TOKEN.txt`（每行一个账号）
 - 运行时手动选择账号（单选 / 多选 / 全部）
 - 社区签到 + 游戏签到
+- 云异环每日首登时长领取与剩余时长查询
 - 签到结果与奖励日志输出（`logs\YYYY-MM-DD.log`）
 
 ## 快速开始（Python）
@@ -40,9 +42,19 @@ python nte.py
 {"refreshToken":"xxx","uid":"10xxxx","deviceId":"xxxxx","gameId":"1289","roleIds":["2160xxxxxxx"]}
 ```
 
-## 多账号选择
+云异环账号可以只保存云时长领取所需字段：
 
-当 `TOKEN.txt` 中有多个账号时，`nte.py` 会提示选择：
+```json
+{"cloudToken":"xxx","cloudUserId":"152xxxx","cloudDeviceId":"xxxxx","deviceId":"xxxxx"}
+```
+
+同一个账号也可以同时保存塔吉多签到和云异环时长字段，运行时会自动执行两部分。
+
+## 多账号运行
+
+当 `TOKEN.txt` 中有多个账号时，`nte.py` / `nte.exe` 默认签到全部账号，适合双击运行。
+
+如需手动选择账号，设置环境变量 `TGD_SELECT_ACCOUNTS=1` 后运行，会提示选择：
 
 - `1`：只签到第 1 个账号
 - `1,3`：签到第 1 和第 3 个账号
@@ -65,13 +77,39 @@ python nte.py
 | `TGD_GAME_ID` | 默认游戏 ID（默认 `1289`） |
 | `TGD_ROLE_IDS` | 角色 ID（逗号分隔，补充/覆盖自动拉取） |
 | `TGD_SIGN_GAME_IDS` | 签到时尝试的 gameId 列表（逗号分隔） |
+| `TGD_SELECT_ACCOUNTS=1` | 多账号时手动选择账号；默认签到全部 |
 | `EXIT_WHEN_FAIL=on` | 任一账号失败时，进程退出码为 1 |
 | `NO_PAUSE=1` | Windows 下失败时不等待回车 |
 | `SKYLAND_TYPE=add_account` | 仅添加账号，不执行签到 |
 
+### 手动选择账号
+
+默认情况下，`TOKEN.txt` 中有多个账号时会自动签到全部账号。只有需要手动选择账号时，才需要设置 `TGD_SELECT_ACCOUNTS=1`。
+
+如果想双击运行并进入账号选择，可以新建 `手动选择签到.bat`：
+
+```bat
+@echo off
+cd /d %~dp0
+set TGD_SELECT_ACCOUNTS=1
+nte.exe
+pause
+```
+
+把这个 `.bat` 文件放在 exe 发布目录下，也就是和 `nte.exe`、`TOKEN.txt` 同一级。例如目录结构应类似：
+
+```text
+你的发布目录\
+├─ nte.exe
+├─ add_account.exe
+├─ TOKEN.txt
+└─ 手动选择签到.bat
+```
+
 ## 常见问题
 
 - `refreshToken 已失效`：删除 `TOKEN.txt` 后重新登录并添加账号。
+- 云异环目前只支持手机号 + 短信验证码登录，添加账号时选择菜单 `4`。
 
 ## 致谢
 
