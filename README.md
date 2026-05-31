@@ -60,6 +60,17 @@ python nte.py
 - `1,3`：签到第 1 和第 3 个账号
 - 回车 / `all` / `a`：签到全部账号
 
+## GitHub Actions 自动运行
+
+本项目已提供 GitHub Actions 工作流，可每天自动执行签到，也可以手动运行。
+
+1. 在 GitHub 仓库页面进入 `Settings` -> `Secrets and variables` -> `Actions`。
+2. 新建仓库 Secret，名称填写 `NTE_TOKEN`。
+3. 将账号内容填入 `NTE_TOKEN`，格式与本地 `TOKEN.txt` 相同；多账号时每行填写一个账号 JSON。
+4. 推送代码后，进入 `Actions` -> `Auto Sign`，可以等待定时任务，也可以点击 `Run workflow` 手动运行。
+
+默认定时任务为每天北京时间 08:00。工作流运行时会通过环境变量 `TOKEN` 读取 `NTE_TOKEN`，不会依赖仓库中的 `TOKEN.txt`。
+
 ## Windows EXE 使用
 
 预编译文件位于 `dist\windows\`：
