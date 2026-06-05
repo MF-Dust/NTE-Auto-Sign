@@ -66,10 +66,23 @@ python nte.py
 
 1. 在 GitHub 仓库页面进入 `Settings` -> `Secrets and variables` -> `Actions`。
 2. 新建仓库 Secret，名称填写 `NTE_TOKEN`。
-3. 将账号内容填入 `NTE_TOKEN`，格式与本地 `TOKEN.txt` 相同；多账号时每行填写一个账号 JSON。
+3. 将账号内容填入 `NTE_TOKEN`。可以使用 `refreshToken` JSON，也可以使用手机号 + 密码 JSON；多账号时每行填写一个账号 JSON。
 4. 推送代码后，进入 `Actions` -> `Auto Sign`，可以等待定时任务，也可以点击 `Run workflow` 手动运行。
 
 默认定时任务为每天北京时间 08:00。工作流运行时会通过环境变量 `TOKEN` 读取 `NTE_TOKEN`，不会依赖仓库中的 `TOKEN.txt`。
+
+手机号 + 密码格式示例：
+
+```json
+{"phone":"13800138000","password":"your_password"}
+```
+
+如需多个账号，在 `NTE_TOKEN` 中每行填写一个 JSON：
+
+```text
+{"phone":"13800138000","password":"password1"}
+{"refreshToken":"xxx","uid":"10xxxx","deviceId":"xxxxx","gameId":"1289","roleIds":["2160xxxxxxx"]}
+```
 
 ## Windows EXE 使用
 

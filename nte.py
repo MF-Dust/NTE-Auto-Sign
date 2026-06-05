@@ -350,8 +350,13 @@ def parse_account_line(line):
         or cloud_raw.get('uid')
         or ''
     ).strip()
-    if not refresh_token and not (cloud_token and cloud_user_id):
-        raise ValueError('账号缺少 refreshToken 或 cloudToken/cloudUserId')
+    phone = str(
+        raw.get('phone') or raw.get('cellphone') or raw.get('mobile') or raw.get('username') or ''
+    ).strip()
+    password = str(raw.get('password') or raw.get('pwd') or '').strip()
+    password_login = phone and password
+    if not refresh_token and not (cloud_token and cloud_user_id) and not password_login:
+        raise ValueError('账号缺少 refreshToken、cloudToken/cloudUserId 或 phone/password')
 
     uid = str(raw.get('uid') or '').strip()
     device_id = str(raw.get('deviceId') or raw.get('deviceid') or '').strip() or _random_device_id()
@@ -373,6 +378,10 @@ def parse_account_line(line):
         account['cloudUserId'] = cloud_user_id
     if cloud_token or cloud_user_id:
         account['cloudDeviceId'] = cloud_device_id
+    if password_login and not refresh_token:
+        account['loginType'] = 'password'
+        account['phone'] = phone
+        account['password'] = password
     return account
 
 
@@ -488,6 +497,7 @@ def read_from_env():
         account = parse_account_line(row)
         if account:
             accounts.append(account)
+    accounts = resolve_accounts(accounts)
     print(f'从环境变量中读取到 {len(accounts)} 个账号...')
     return accounts
 
@@ -1044,6 +1054,52 @@ def _build_account_from_user_center(user_center, device_id):
     return account
 
 
+def _is_password_login_account(account):
+    if str(account.get('refreshToken') or '').strip():
+        return False
+    return (
+        account.get('loginType') == 'password'
+        and str(account.get('phone') or '').strip()
+        and str(account.get('password') or '').strip()
+    )
+
+
+def _resolve_password_login_account(account):
+    phone = str(account.get('phone') or '').strip()
+    password = str(account.get('password') or '').strip()
+    device_id = str(account.get('deviceId') or '').strip() or _random_device_id()
+
+    print('使用手机号+密码登录生成签到账号...')
+    token, user_id = login_with_password(phone, password, device_id)
+    user_center = user_center_login(token, user_id, device_id)
+    resolved = _build_account_from_user_center(user_center, device_id)
+
+    game_id = str(account.get('gameId') or '').strip()
+    if game_id:
+        resolved['gameId'] = game_id
+
+    role_ids = _parse_role_ids(account.get('roleIds'))
+    if role_ids:
+        resolved['roleIds'] = role_ids
+
+    for key in ('cloudToken', 'cloudUserId', 'cloudDeviceId'):
+        value = str(account.get(key) or '').strip()
+        if value:
+            resolved[key] = value
+
+    return resolved
+
+
+def resolve_accounts(accounts):
+    resolved = []
+    for account in accounts:
+        if _is_password_login_account(account):
+            resolved.append(_resolve_password_login_account(account))
+        else:
+            resolved.append(account)
+    return resolved
+
+
 def login_by_code():
     phone = input('请输入手机号码：').strip()
     if not phone:
@@ -1145,6 +1201,7 @@ def init_token():
         print('！！！您启用了添加账号模式，将不会执行签到！！！')
     if len(accounts) == 0 or add_account:
         accounts.append(input_for_token())
+    accounts = resolve_accounts(accounts)
     save(accounts)
     if add_account:
         return []

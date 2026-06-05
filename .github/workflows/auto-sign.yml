@@ -38,6 +38,7 @@ jobs:
           if [ -z "$TOKEN" ]; then
             echo "NTE_TOKEN secret is not configured."
             echo "Add it in Settings -> Secrets and variables -> Actions."
+            echo "It can contain refreshToken JSON or phone/password JSON, one account per line."
             exit 1
           fi
 
