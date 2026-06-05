@@ -316,6 +316,25 @@ def _request_json(url, data, headers):
     return requests.post(url, json=data, headers=headers)
 
 
+def _normalize_config_key(key):
+    return ''.join(i for i in str(key).lower() if i.isalnum())
+
+
+def _config_value(raw, *keys):
+    if not isinstance(raw, dict):
+        return ''
+    for key in keys:
+        if key in raw:
+            return raw.get(key)
+
+    normalized = {_normalize_config_key(k): v for k, v in raw.items()}
+    for key in keys:
+        value = normalized.get(_normalize_config_key(key))
+        if value is not None:
+            return value
+    return ''
+
+
 def parse_account_line(line):
     line = line.strip()
     if not line:
@@ -335,36 +354,68 @@ def parse_account_line(line):
     if not isinstance(raw, dict):
         raise ValueError('账号内容必须是JSON对象')
 
-    refresh_token = str(raw.get('refreshToken') or raw.get('token') or '').strip()
-    cloud_raw = raw.get('cloud')
+    refresh_token = str(_config_value(raw, 'refreshToken', 'refresh_token', 'token') or '').strip()
+    cloud_raw = _config_value(raw, 'cloud')
     if not isinstance(cloud_raw, dict):
         cloud_raw = {}
     cloud_token = str(
-        raw.get('cloudToken') or raw.get('cloud_token') or cloud_raw.get('token') or ''
+        _config_value(raw, 'cloudToken', 'cloud_token') or _config_value(cloud_raw, 'token') or ''
     ).strip()
     cloud_user_id = str(
-        raw.get('cloudUserId')
-        or raw.get('cloud_user_id')
-        or raw.get('cloudUid')
-        or cloud_raw.get('userId')
-        or cloud_raw.get('uid')
+        _config_value(raw, 'cloudUserId', 'cloud_user_id', 'cloudUid')
+        or _config_value(cloud_raw, 'userId', 'uid')
         or ''
     ).strip()
+    login_raw = _config_value(raw, 'login', 'passwordLogin')
+    if not isinstance(login_raw, dict):
+        login_raw = {}
     phone = str(
-        raw.get('phone') or raw.get('cellphone') or raw.get('mobile') or raw.get('username') or ''
+        _config_value(
+            raw,
+            'phone',
+            'cellphone',
+            'cellPhone',
+            'mobile',
+            'mobilePhone',
+            'phoneNumber',
+            'username',
+            'account',
+            'user',
+            'loginName',
+        )
+        or _config_value(
+            login_raw,
+            'phone',
+            'cellphone',
+            'cellPhone',
+            'mobile',
+            'mobilePhone',
+            'phoneNumber',
+            'username',
+            'account',
+            'user',
+            'loginName',
+        )
+        or ''
     ).strip()
-    password = str(raw.get('password') or raw.get('pwd') or '').strip()
+    password = str(
+        _config_value(raw, 'password', 'pwd', 'pass', 'passwd', 'passWord')
+        or _config_value(login_raw, 'password', 'pwd', 'pass', 'passwd', 'passWord')
+        or ''
+    ).strip()
     password_login = phone and password
     if not refresh_token and not (cloud_token and cloud_user_id) and not password_login:
         raise ValueError('账号缺少 refreshToken、cloudToken/cloudUserId 或 phone/password')
 
-    uid = str(raw.get('uid') or '').strip()
-    device_id = str(raw.get('deviceId') or raw.get('deviceid') or '').strip() or _random_device_id()
+    uid = str(_config_value(raw, 'uid') or '').strip()
+    device_id = str(_config_value(raw, 'deviceId', 'deviceid', 'device_id') or '').strip() or _random_device_id()
     cloud_device_id = str(
-        raw.get('cloudDeviceId') or raw.get('cloud_device_id') or cloud_raw.get('deviceId') or ''
+        _config_value(raw, 'cloudDeviceId', 'cloud_device_id')
+        or _config_value(cloud_raw, 'deviceId', 'deviceid', 'device_id')
+        or ''
     ).strip() or device_id
-    game_id = str(raw.get('gameId') or raw.get('game_id') or _default_game_id()).strip() or _default_game_id()
-    role_ids = _parse_role_ids(raw.get('roleIds') or raw.get('role_ids') or raw.get('roleId'))
+    game_id = str(_config_value(raw, 'gameId', 'game_id') or _default_game_id()).strip() or _default_game_id()
+    role_ids = _parse_role_ids(_config_value(raw, 'roleIds', 'role_ids', 'roleId'))
     account = {
         'refreshToken': refresh_token,
         'uid': uid,
@@ -493,8 +544,11 @@ def _env_items():
 
 def read_from_env():
     accounts = []
-    for row in _env_items():
-        account = parse_account_line(row)
+    for idx, row in enumerate(_env_items(), start=1):
+        try:
+            account = parse_account_line(row)
+        except ValueError as ex:
+            raise ValueError(f'TOKEN 第 {idx} 行账号配置无效：{ex}') from ex
         if account:
             accounts.append(account)
     accounts = resolve_accounts(accounts)

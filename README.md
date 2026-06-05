@@ -77,6 +77,8 @@ python nte.py
 {"phone":"13800138000","password":"your_password"}
 ```
 
+推荐使用 `phone` 和 `password` 字段；脚本也兼容常见别名，例如 `account`/`username` 与 `pwd`/`passwd`。
+
 如需多个账号，在 `NTE_TOKEN` 中每行填写一个 JSON：
 
 ```text
